@@ -209,7 +209,7 @@ class WFairLinUCB(LinUCB):
     def __post_init__(self) -> None:
         """Initialize class."""
         check_scalar(self.epsilon, "epsilon", float, min_val=0.0)
-        self.policy_name = f"wfair_linear_ucb_{self.epsilon}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')"
+        self.policy_name = f"wfair_linear_ucb_{self.epsilon}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
 
         super().__post_init__()
 
@@ -295,7 +295,7 @@ class FairLinUCB(LinUCB):
     def __post_init__(self) -> None:
         """Initialize class."""
         check_scalar(self.epsilon, "epsilon", float, min_val=0.0)
-        self.policy_name = f"fair_linear_ucb_{self.epsilon}_{self.alpha}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')"
+        self.policy_name = f"fair_linear_ucb_{self.epsilon}_{self.alpha}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
 
         super().__post_init__()
 
@@ -353,4 +353,3 @@ class FairLinUCB(LinUCB):
     def clear_group_count(self):
         self.group_count = {k: 0 for k in range(1, self.n_group + 1)}
         self.arm_count = {k: 0 for k in range(self.n_actions)}
-
