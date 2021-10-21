@@ -112,7 +112,7 @@ class LinUCB(BaseLinPolicy):
     n_group: int = 0
     item_group: dict = {}
     group_count: dict = {}
-    fairness_weight: list = []
+    fairness_weight: dict = {}
 
     def __post_init__(self) -> None:
         """Initialize class."""
@@ -204,7 +204,7 @@ class WFairLinUCB(LinUCB):
     n_group: int = 0
     item_group: dict = {}
     group_count: dict = {}
-    fairness_weight: list = []
+    fairness_weight: dict = {}
 
     def __post_init__(self) -> None:
         """Initialize class."""
@@ -353,3 +353,4 @@ class FairLinUCB(LinUCB):
     def clear_group_count(self):
         self.group_count = {k: 0 for k in range(1, self.n_group + 1)}
         self.arm_count = {k: 0 for k in range(self.n_actions)}
+
