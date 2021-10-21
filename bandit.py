@@ -5,8 +5,98 @@ import random
 import numpy as np
 import pandas as pd
 import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from obp.policy.base import BaseContextFreePolicy, BaseContextualPolicy
+
+from sklearn.utils import check_random_state
+from sklearn.utils import check_scalar
+
+
+@dataclass
+class EpsilonGreedy(BaseContextFreePolicy):
+    """Epsilon Greedy policy.
+    Parameters
+    ----------
+    n_actions: int
+        Number of actions.
+    len_list: int, default=1
+        Length of a list of actions recommended in each impression.
+        When Open Bandit Dataset is used, 3 should be set.
+    batch_size: int, default=1
+        Number of samples used in a batch parameter update.
+    random_state: int, default=None
+        Controls the random seed in sampling actions.
+    epsilon: float, default=1.
+        Exploration hyperparameter that must take value in the range of [0., 1.].
+    policy_name: str, default=f'egreedy_{epsilon}'.
+        Name of bandit policy.
+    """
+
+    epsilon: float = 1.0
+    n_group: int = 0
+    item_group: dict = field(default_factory=dict)
+    fairness_weight: dict = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Initialize Class."""
+        check_scalar(self.epsilon, "epsilon", float, min_val=0.0, max_val=1.0)
+        self.policy_name = f"egreedy_{self.epsilon}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+
+        self.group_count: dict = {}
+
+        super().__post_init__()
+
+    def select_action(self) -> np.ndarray:
+        """Select a list of actions.
+        Returns
+        ----------
+        selected_actions: array-like, shape (len_list, )
+            List of selected actions.
+        """
+        if (self.random_.rand() > self.epsilon) and (self.action_counts.min() > 0):
+            predicted_rewards = self.reward_counts / self.action_counts
+            actions = predicted_rewards.argsort()[::-1][: self.len_list]
+        else:
+            actions = self.random_.choice(
+                self.n_actions, size=self.len_list, replace=False
+            )
+
+        self.update_fairness_status(actions)
+        return actions
+
+    def update_params(self, action: int, reward: float) -> None:
+        """Update policy parameters.
+        Parameters
+        ----------
+        action: int
+            Selected action by the policy.
+        reward: float
+            Observed reward for the chosen action and position.
+        """
+        self.n_trial += 1
+        self.action_counts_temp[action] += 1
+        self.reward_counts_temp[action] += reward
+        if self.n_trial % self.batch_size == 0:
+            self.action_counts = np.copy(self.action_counts_temp)
+            self.reward_counts = np.copy(self.reward_counts_temp)
+
+    def update_fairness_status(self, actions):
+        for action in actions:
+            self.group_count[self.item_group[action]] += 1
+
+    def clear_group_count(self):
+        self.group_count = {k: 0 for k in range(1, self.n_group + 1)}
+
+    @property
+    def propfair(self):
+        propfair = 0
+        total_exp = np.sum(list(self.group_count.values()))
+        if total_exp > 0:
+            propfair = np.sum(
+                np.array(list(self.fairness_weight.values()))
+                * np.log(1 + np.array(list(self.group_count.values())) / total_exp)
+            )
+        return propfair
 
 
 @dataclass
@@ -110,14 +200,14 @@ class LinUCB(BaseLinPolicy):
 
     epsilon: float = 0.0
     n_group: int = 0
-    item_group: dict = {}
-    group_count: dict = {}
-    fairness_weight: dict = {}
+    item_group: dict = field(default_factory=dict)
+    fairness_weight: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Initialize class."""
         check_scalar(self.epsilon, "epsilon", float, min_val=0.0)
         self.policy_name = f"linear_ucb_{self.epsilon}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+        self.group_count: dict = {}
 
         super().__post_init__()
 
@@ -156,7 +246,7 @@ class LinUCB(BaseLinPolicy):
 
         return actions
 
-    def update_fairness_status(self, action):
+    def update_fairness_status(self, actions):
         for action in actions:
             self.group_count[self.item_group[action]] += 1
 
@@ -202,14 +292,14 @@ class WFairLinUCB(LinUCB):
 
     epsilon: float = 0.0
     n_group: int = 0
-    item_group: dict = {}
-    group_count: dict = {}
-    fairness_weight: dict = {}
+    item_group: dict = field(default_factory=dict)
+    fairness_weight: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Initialize class."""
         check_scalar(self.epsilon, "epsilon", float, min_val=0.0)
         self.policy_name = f"wfair_linear_ucb_{self.epsilon}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+        self.group_count: dict = {}
 
         super().__post_init__()
 
@@ -287,20 +377,20 @@ class FairLinUCB(LinUCB):
     epsilon: float = 0.0
     alpha: float = 0.0
     n_group: int = 0
-    item_group: dict = {}
-    group_count: dict = {}
-    arm_count: dict = {}
-    fairness_constraint: list = []
+    item_group: dict = field(default_factory=dict)
+    fairness_weight: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Initialize class."""
         check_scalar(self.epsilon, "epsilon", float, min_val=0.0)
         self.policy_name = f"fair_linear_ucb_{self.epsilon}_{self.alpha}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+        self.group_count: dict = {}
+        self.arm_count: dict = {}
 
         super().__post_init__()
 
     def calculate_score_fairness(self) -> np.array:
-        fair = self.fairness_constraint * (
+        fair = np.array(list(self.fairness_weight.value())) * (
             np.sum(np.array(list(self.action_counts.value()))) - 1
         ) - np.array(list(self.action_counts.value()))
 
@@ -345,7 +435,7 @@ class FairLinUCB(LinUCB):
         self.update_fairness_status(actions)
         return actions
 
-    def update_fairness_status(self, action):
+    def update_fairness_status(self, actions):
         for action in actions:
             self.group_count[self.item_group[action]] += 1
             self.arm_count[action] += 1
