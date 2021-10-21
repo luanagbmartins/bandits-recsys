@@ -7,6 +7,7 @@ import pandas as pd
 import datetime
 from dataclasses import dataclass, field
 from obp.policy.base import BaseContextFreePolicy, BaseContextualPolicy
+from obp.utils import check_array
 
 from sklearn.utils import check_random_state
 from sklearn.utils import check_scalar
