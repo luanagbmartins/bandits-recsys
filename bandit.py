@@ -342,7 +342,9 @@ class WFairLinUCB(LinUCB):
             np.array(list(self.group_count.values()))
             / np.sum(list(self.group_count.values()))
         )
-        ucb_scores = ucb_scores + (wfair * np.absolute(ucb_scores))
+
+        _wfair = [wfair[value - 1] for value in self.item_group.values()]
+        ucb_scores = ucb_scores + (np.array(_wfair) * np.absolute(ucb_scores))
 
         actions = ucb_scores.argsort()[::-1][: self.len_list]
         self.update_fairness_status(actions)
